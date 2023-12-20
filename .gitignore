@@ -1,5 +1,4 @@
 /.idea/
 /__pycahce__
-db/__pycahce__
-app/__pycahce__
+*/__pycahce__
 *.sqlite

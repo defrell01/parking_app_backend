@@ -1,117 +1,156 @@
-import sqlite3
+from sqlalchemy import and_, create_engine, desc, func
+from sqlalchemy.orm import sessionmaker
 from datetime import datetime
-from db.models import Bookings, EndingBooking
+from db.db_models import Base, Booking, ParkingLot, Admin
+
+
+engine = create_engine('sqlite:///../bookings.sqlite', connect_args={'check_same_thread': False})
+Session = sessionmaker(bind=engine)
+Base.metadata.drop_all(engine)
 
 
 def initialize_db():
-    conn = sqlite3.connect('../bookings.sqlite')
-    cursor = conn.cursor()
+    
+    Base.metadata.create_all(engine)
+    session = Session()
 
-    cursor.execute('''
-            CREATE TABLE IF NOT EXISTS BOOKINGS (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                firstName TEXT,
-                secondName TEXT,
-                carNumber TEXT,
-                parkingLot INTEGER,
-                start TEXT,
-                end TEXT
-            )
-        ''')
+    for i in [5, 6, 7, 8, 9, 10, 19, 20, 21, 23]:
+        if not session.query(ParkingLot).filter(ParkingLot.id == i).first():
+            parking_lot = ParkingLot(id=i, status=0)
+            session.add(parking_lot)
 
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS PARKING_LOTS (
-            id INTEGER PRIMARY KEY,
-            status integer
-        )
-    ''')
+    if not session.query(Admin).filter(Admin.login == "admin").first():
+        session.add(Admin(login="admin", hashed_password="..."))
 
-    cursor.execute('''
-        INSERT OR IGNORE INTO PARKING_LOTS (id, status) VALUES 
-            (1, 0), 
-            (2, 0), 
-            (3, 0), 
-            (4, 0), 
-            (5, 0),
-            (6, 0), 
-            (7, 0), 
-            (8, 0), 
-            (9, 0);     
-    ''')
-
-    conn.commit()
-    conn.close()
+    session.commit()
+    session.close()
 
 
-def create_booking(booking: Bookings):
-    conn = sqlite3.connect('../bookings.sqlite')
-    cursor = conn.cursor()
-    time = datetime.now().isoformat()
+def create_booking(booking):
+    session = Session()
     try:
-        cursor.execute('''
-            INSERT INTO BOOKINGS (firstName, secondName, carNumber, parkingLot, start)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (booking.firstName, booking.secondName, booking.carNumber, booking.parkingLot, time))
+        time = datetime.now()
+        new_booking = Booking(
+            firstName=booking.firstName,
+            secondName=booking.secondName,
+            carNumber=booking.carNumber,
+            parkingLot=booking.parkingLot,
+            start=time
+        )
+        session.add(new_booking)
 
-        cursor.execute('''
-            UPDATE PARKING_LOTS
-            SET status = 1
-            WHERE id = ?
-        ''', (booking.parkingLot,))
+        parking_lot = session.query(ParkingLot).filter_by(id=booking.parkingLot).first()
+        if parking_lot:
+            parking_lot.status = 1
 
-        conn.commit()
-    except sqlite3.Error as e:
+        session.commit()
+    except Exception as e:
+        session.rollback()
         raise e
     finally:
-        conn.close()
+        session.close()
 
 
-def end_booking(entry: EndingBooking):
-    conn = sqlite3.connect('../bookings.sqlite')
-    cursor = conn.cursor()
+def end_booking(entry):
+    session = Session()
+    try:
+        time = datetime.now()
+        latest_booking = session.query(Booking).filter_by(parkingLot=entry.parking_lot).order_by(desc(Booking.id)).first()
+        if not latest_booking:
+            raise ValueError("No active bookings for this parking lot")
 
-    cursor.execute('''
-        SELECT id FROM BOOKINGS
-        WHERE parkingLot = ?
-        ORDER BY id DESC
-        LIMIT 1
-    ''', (entry.parking_lot,))
+        latest_booking.end = time
 
-    booking_id = cursor.fetchone()
-    if booking_id:
-        booking_id = booking_id[0]
-    else:
-        conn.close()
-        raise ValueError("Нет активных бронирований для данного парковочного места")
+        parking_lot = session.query(ParkingLot).filter_by(id=entry.parking_lot).first()
+        if parking_lot:
+            parking_lot.status = 0
 
-    end_time = datetime.now()
-
-    cursor.execute('''
-        UPDATE BOOKINGS
-        SET end = ?
-        WHERE id = ?
-    ''', (end_time.isoformat(), booking_id))
-
-    cursor.execute('''
-        UPDATE PARKING_LOTS
-        SET status = 0
-        WHERE id = ?
-    ''', (entry.parking_lot,))
-
-    conn.commit()
-    conn.close()
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        raise e
+    finally:
+        session.close()
 
 
 def get_lots():
-    conn = sqlite3.connect('../bookings.sqlite')
-    cursor = conn.cursor()
+    session = Session()
+    try:
+        latest_booking_subquery = (
+            session.query(
+                Booking.parkingLot,
+                func.max(Booking.start).label("latest_start")
+            )
+            .group_by(Booking.parkingLot)
+            .subquery()
+        )
 
-    cursor.execute('''
-        SELECT * FROM PARKING_LOTS        
-    ''')
+        latest_bookings = (
+            session.query(
+                ParkingLot.id,
+                ParkingLot.status,
+                Booking.firstName,
+                Booking.secondName,
+                Booking.start,
+                Booking.carNumber
+            )
+            .join(
+                latest_booking_subquery,
+                Booking.parkingLot == latest_booking_subquery.c.parkingLot
+            )
+            .filter(Booking.start == latest_booking_subquery.c.latest_start)
+            .outerjoin(ParkingLot, ParkingLot.id == Booking.parkingLot)
+            .filter(
+                (ParkingLot.status == 1),
+                ParkingLot.id.isnot(None)
+            )
+            .all()
+        )
 
-    rows = cursor.fetchall()
+        return latest_bookings
+    finally:
+        session.close()
 
-    conn.close()
 
-    return rows
+def get_admin(login):
+    session = Session()
+    try:
+        admin = session.query(Admin.hashed_password).filter_by(login=login).first()
+        return admin.hashed_password if admin else None
+    finally:
+        session.close()
+
+
+def admin_book(entry, start_time):
+    session = Session()
+    try:
+        owner = session.query(Booking.firstName, Booking.secondName).filter_by(carNumber=entry.carNumber).first()
+        if not owner:
+            new_booking = Booking(
+                firstName="adm",
+                secondName="adm",
+                carNumber=entry.carNumber,
+                parkingLot=entry.parkingLot,
+                start=start_time
+            )
+        else:
+            new_booking = Booking(
+                firstName=owner.firstName,
+                secondName=owner.secondName,
+                carNumber=entry.carNumber,
+                parkingLot=entry.parkingLot,
+                start=start_time
+            )
+        session.add(new_booking)
+
+        parking_lot = session.query(ParkingLot).filter_by(id=entry.parkingLot).first()
+        if parking_lot:
+            parking_lot.status = 1
+
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        raise e
+    finally:
+        session.close()
+        
