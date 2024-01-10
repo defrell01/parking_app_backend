@@ -14,7 +14,7 @@ class ParkingLots(BaseModel):
 
 
 class EndingBooking(BaseModel):
-    parking_lot: int
+    parkingLot: int
 
 
 class AdminRequest(BaseModel):

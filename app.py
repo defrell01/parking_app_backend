@@ -1,6 +1,6 @@
 from fastapi import FastAPI
-from db.database import (create_booking, end_booking, get_lots, initialize_db, get_admin,
-                         admin_book, initialize_db)
+from db.database import (create_booking, end_booking, get_active_lots, initialize_db, get_admin,
+                         admin_book, initialize_db, get_inactive_lots)
 from db.request_models import AdminRequest, AdminBook, Bookings, EndingBooking
 from datetime import datetime
 import hashlib
@@ -15,9 +15,12 @@ initialize_db()
 @app.post("/create_booking/")
 def endpoint_create_booking(booking: Bookings):
     try:
-        start_time = datetime.now()
-        create_booking(booking)
-        return {"message": "Booking created successfully"}
+        status = create_booking(booking)
+
+        if status == 1:
+            return {"message": "Booking created successfully"}
+        elif status == -1:
+            return {"message": "Can't create more than two bookings"}
     except Exception as e:
         return HTTPStatus(400)
 
@@ -34,20 +37,30 @@ def endpoint_end_booking(entry: EndingBooking):
 @app.get("/get_lots/")
 def endpoint_get_lots():
     try:
-        lots_info = get_lots()
-        response = [
+        active_lots_info = get_active_lots()
+        inactive_lots_info = get_inactive_lots()
+
+        active_response = [
             {
-                "id": lot_info[0],
+                "id": lot_info[0] if lot_info[0] is not None else "parking_lot_" + str(lot_info[1]),
                 "status": lot_info[1],
-                "firstName": lot_info[2],
-                "secondName": lot_info[3],
-                "startTime": lot_info[4],
-                "carNumber": lot_info[5]
+                "firstName": lot_info[2] if lot_info[0] is not None else None,
+                "secondName": lot_info[3] if lot_info[0] is not None else None,
+                "startTime": lot_info[4] if lot_info[0] is not None else None,
+                "carNumber": lot_info[5] if lot_info[0] is not None else None
             }
-            for lot_info in lots_info
+            for lot_info in active_lots_info
         ]
 
-        return response
+        inactive_response = [
+            {
+                "id": lot_info[0] if lot_info[0] is not None else "parking_lot_" + str(lot_info[1]),
+                "status": lot_info[1]
+            }
+            for lot_info in inactive_lots_info
+        ]
+
+        return {"active_lots": active_response, "inactive_lots": inactive_response}
     except Exception as e:
         return HTTPStatus(400)
 

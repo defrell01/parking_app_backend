@@ -1,5 +1,5 @@
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 
 Base = declarative_base()
@@ -15,6 +15,7 @@ class Booking(Base):
     parkingLot = Column(Integer, ForeignKey('parking_lots.id'))
     start = Column(String)
     end = Column(String)
+    ended = Column(Boolean)
 
     parking_lot = relationship("ParkingLot", back_populates="bookings")
 

@@ -1,4 +1,4 @@
-from sqlalchemy import and_, create_engine, desc, func
+from sqlalchemy import and_, create_engine, desc, func, or_, select
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 from db.db_models import Base, Booking, ParkingLot, Admin
@@ -20,7 +20,7 @@ def initialize_db():
             session.add(parking_lot)
 
     if not session.query(Admin).filter(Admin.login == "admin").first():
-        session.add(Admin(login="admin", hashed_password="..."))
+        session.add(Admin(login="admin", hashed_password="ecd71870d1963316a97e3ac3408c9835ad8cf0f3c1bc703527c30265534f75ae"))
 
     session.commit()
     session.close()
@@ -29,21 +29,39 @@ def initialize_db():
 def create_booking(booking):
     session = Session()
     try:
-        time = datetime.now()
-        new_booking = Booking(
-            firstName=booking.firstName,
-            secondName=booking.secondName,
-            carNumber=booking.carNumber,
-            parkingLot=booking.parkingLot,
-            start=time
+
+        latest_booking = (
+            session.query(Booking)
+            .filter_by(carNumber=booking.carNumber, ended=False)
+            .order_by(desc(Booking.id))
+            .first()
         )
-        session.add(new_booking)
 
-        parking_lot = session.query(ParkingLot).filter_by(id=booking.parkingLot).first()
-        if parking_lot:
-            parking_lot.status = 1
+        latest_booking_exists = bool(latest_booking)
 
-        session.commit()
+        if (latest_booking_exists):
+            return -1
+        else:
+
+            time = datetime.now()
+            new_booking = Booking(
+                firstName=booking.firstName,
+                secondName=booking.secondName,
+                carNumber=booking.carNumber,
+                parkingLot=booking.parkingLot,
+                start=time,
+                ended=False
+            )
+            session.add(new_booking)
+
+            parking_lot = session.query(ParkingLot).filter_by(id=booking.parkingLot).first()
+            if parking_lot:
+                parking_lot.status = 1
+
+            session.commit()
+
+            return 1
+        
     except Exception as e:
         session.rollback()
         raise e
@@ -55,59 +73,86 @@ def end_booking(entry):
     session = Session()
     try:
         time = datetime.now()
-        latest_booking = session.query(Booking).filter_by(parkingLot=entry.parking_lot).order_by(desc(Booking.id)).first()
+        latest_booking = (
+            session.query(Booking)
+            .filter_by(parkingLot=entry.parkingLot, ended=False)
+            .order_by(desc(Booking.id))
+            .first()
+        )
         if not latest_booking:
             raise ValueError("No active bookings for this parking lot")
 
         latest_booking.end = time
+        latest_booking.ended = True
 
-        parking_lot = session.query(ParkingLot).filter_by(id=entry.parking_lot).first()
+        parking_lot = session.query(ParkingLot).filter_by(id=entry.parkingLot).first()
         if parking_lot:
             parking_lot.status = 0
 
         session.commit()
     except Exception as e:
+        print (e)
         session.rollback()
         raise e
     finally:
         session.close()
 
 
-def get_lots():
+def get_inactive_lots():
     session = Session()
     try:
-        latest_booking_subquery = (
-            session.query(
-                Booking.parkingLot,
-                func.max(Booking.start).label("latest_start")
-            )
-            .group_by(Booking.parkingLot)
-            .subquery()
-        )
-
-        latest_bookings = (
+        inactive_lots = (
             session.query(
                 ParkingLot.id,
-                ParkingLot.status,
-                Booking.firstName,
-                Booking.secondName,
-                Booking.start,
-                Booking.carNumber
+                ParkingLot.status
             )
-            .join(
-                latest_booking_subquery,
-                Booking.parkingLot == latest_booking_subquery.c.parkingLot
-            )
-            .filter(Booking.start == latest_booking_subquery.c.latest_start)
-            .outerjoin(ParkingLot, ParkingLot.id == Booking.parkingLot)
             .filter(
-                (ParkingLot.status == 1),
-                ParkingLot.id.isnot(None)
+                ParkingLot.status == 0
             )
             .all()
         )
 
-        return latest_bookings
+        return inactive_lots
+    finally:
+        session.close()
+
+
+def get_active_lots():
+    session = Session()
+    try:
+        subquery = (
+            select(
+                Booking.parkingLot,
+                Booking.firstName,
+                Booking.secondName,
+                Booking.start,
+                Booking.carNumber,
+                func.row_number().over(
+                    partition_by=Booking.parkingLot,
+                    order_by=Booking.start.desc()
+                ).label("row_num")
+            )
+            .where(Booking.ended == False)
+            .alias("sub")
+        )
+        active_lots = (
+            session.query(
+                ParkingLot.id,
+                ParkingLot.status,
+                subquery.c.firstName,
+                subquery.c.secondName,
+                subquery.c.start,
+                subquery.c.carNumber
+            )
+            .outerjoin(subquery, ParkingLot.id == subquery.c.parkingLot)
+            .filter(
+                subquery.c.row_num == 1,
+                ParkingLot.status == 1
+            )
+            .all()
+        )
+
+        return active_lots
     finally:
         session.close()
 
@@ -131,7 +176,8 @@ def admin_book(entry, start_time):
                 secondName="adm",
                 carNumber=entry.carNumber,
                 parkingLot=entry.parkingLot,
-                start=start_time
+                start=start_time,
+                ended=False  
             )
         else:
             new_booking = Booking(
@@ -139,7 +185,8 @@ def admin_book(entry, start_time):
                 secondName=owner.secondName,
                 carNumber=entry.carNumber,
                 parkingLot=entry.parkingLot,
-                start=start_time
+                start=start_time,
+                ended=False 
             )
         session.add(new_booking)
 
@@ -148,9 +195,19 @@ def admin_book(entry, start_time):
             parking_lot.status = 1
 
         session.commit()
+
+        return {
+            'booking_id': new_booking.id,
+            'car_number': new_booking.carNumber,
+            'start_time': new_booking.start,
+            'parking_lot': new_booking.parkingLot
+        }
     except Exception as e:
         session.rollback()
         raise e
     finally:
         session.close()
-        
+
+        active_lots = get_active_lots()
+        print(active_lots)
+            
