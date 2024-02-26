@@ -34,3 +34,17 @@ class Admin(Base):
     
     login = Column(String, primary_key=True)
     hashed_password = Column(String)
+
+
+class User(Base):
+    __tablename__ = 'users'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    
+    login = Column(String)
+    password = Column(String)
+    
+    first_name = Column(String)
+    second_name = Column(String)
+
+    car_number = Column(String)

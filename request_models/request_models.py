@@ -1,46 +1,47 @@
 from pydantic import BaseModel
 
 
-class Bookings(BaseModel):
+class RBookings(BaseModel):
     firstName: str
     secondName: str
     carNumber: str
     parkingLot: int
 
 
-class ParkingLots(BaseModel):
+class RParkingLots(BaseModel):
     id: int
     status: int
 
 
-class EndingBooking(BaseModel):
+class REndingBooking(BaseModel):
     parkingLot: int
 
 
-class AdminRequest(BaseModel):
+class RAdminRequest(BaseModel):
     login: str
     password: str
 
 
-class AdminBook(BaseModel):
+class RAdminBook(BaseModel):
     parkingLot: int
     carNumber: str
 
-class Token(BaseModel):
+
+class RToken(BaseModel):
     access_token: str
     token_type: str
 
 
-class TokenData(BaseModel):
+class RTokenData(BaseModel):
     username: str | None = None
 
 
-class User(BaseModel):
+class RUser(BaseModel):
     login: str
     password: str | None = None
     first_name: str | None = None
     second_name: str | None = None
 
 
-class UserInDB(User):
+class RUserInDB(RUser):
     password: str

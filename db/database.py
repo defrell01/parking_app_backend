@@ -1,7 +1,8 @@
-from sqlalchemy import and_, create_engine, desc, func, or_, select
+from sqlalchemy import create_engine, desc, func, select
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
-from db.db_models import Base, Booking, ParkingLot, Admin
+from db.db_models import Base, Booking, ParkingLot, Admin, User
+import request_models.request_models as models
 
 
 engine = create_engine('sqlite:///../bookings.sqlite', connect_args={'check_same_thread': False})
@@ -211,3 +212,49 @@ def admin_book(entry, start_time):
         active_lots = get_active_lots()
         print(active_lots)
             
+
+def create_user(user_data: models.RUser):
+    session = Session()
+
+    try:
+        new_user = User(
+           login = user_data.login,
+           password = user_data.password,
+           first_name = user_data.first_name,
+           second_name = user_data.second_name,
+           car_number = None
+        )
+
+        session.add(new_user)
+
+        session.commit()
+
+        return User
+    
+    except Exception as e:
+        session.rollback()
+        raise e
+
+    finally:
+        session.close()
+
+
+def get_user(entry_login: str):
+    session = Session()
+
+    try:
+        print(0)
+        user = session.query(User).filter_by(login = entry_login).first()
+
+        if user:
+            print(user.password)
+            return user
+        else:
+            return None
+    
+    except Exception as e:
+        session.rollback()
+        raise e
+
+    finally:
+        session.close()    
