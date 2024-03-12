@@ -16,6 +16,7 @@ class Booking(Base):
     start = Column(String)
     end = Column(String)
     ended = Column(Boolean)
+    error = Column(Boolean, nullable=True)
 
     parking_lot = relationship("ParkingLot", back_populates="bookings")
 
@@ -25,6 +26,7 @@ class ParkingLot(Base):
     
     id = Column(Integer, primary_key=True)
     status = Column(Integer)
+    floor = Column(Integer)
 
     bookings = relationship("Booking", order_by=Booking.id, back_populates="parking_lot")
 
@@ -48,3 +50,5 @@ class User(Base):
     second_name = Column(String)
 
     car_number = Column(String)
+
+    admin = Column(Boolean)

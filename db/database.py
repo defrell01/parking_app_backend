@@ -3,25 +3,41 @@ from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 from db.db_models import Base, Booking, ParkingLot, Admin, User
 import request_models.request_models as models
+import os
 
+db_url = os.getenv('DATABASE_URL')
 
-engine = create_engine('sqlite:///../bookings.sqlite', connect_args={'check_same_thread': False})
+engine = create_engine(db_url, connect_args={'check_same_thread': False})
 Session = sessionmaker(bind=engine)
-Base.metadata.drop_all(engine)
 
 
-def initialize_db():
-    
+def initialize_db(username, password):
     Base.metadata.create_all(engine)
     session = Session()
 
     for i in [5, 6, 7, 8, 9, 10, 19, 20, 21, 23]:
         if not session.query(ParkingLot).filter(ParkingLot.id == i).first():
-            parking_lot = ParkingLot(id=i, status=0)
+            if i < 19:
+                floor = 1
+            else:
+                floor = 2
+            
+            parking_lot = ParkingLot(id=i, status=0, floor=floor)
+            
             session.add(parking_lot)
 
-    if not session.query(Admin).filter(Admin.login == "admin").first():
-        session.add(Admin(login="admin", hashed_password="ecd71870d1963316a97e3ac3408c9835ad8cf0f3c1bc703527c30265534f75ae"))
+    new_user = User(
+            login=username,
+            password=password,
+            first_name=None,
+            second_name=None,
+            car_number=None,
+            admin=True
+        )
+
+    session.add(new_user)
+
+
 
     session.commit()
     session.close()
@@ -62,7 +78,7 @@ def create_booking(booking):
             session.commit()
 
             return 1
-        
+
     except Exception as e:
         session.rollback()
         raise e
@@ -92,7 +108,7 @@ def end_booking(entry):
 
         session.commit()
     except Exception as e:
-        print (e)
+        print(e)
         session.rollback()
         raise e
     finally:
@@ -105,7 +121,8 @@ def get_inactive_lots():
         inactive_lots = (
             session.query(
                 ParkingLot.id,
-                ParkingLot.status
+                ParkingLot.status,
+                ParkingLot.floor
             )
             .filter(
                 ParkingLot.status == 0
@@ -140,6 +157,7 @@ def get_active_lots():
             session.query(
                 ParkingLot.id,
                 ParkingLot.status,
+                ParkingLot.floor,
                 subquery.c.firstName,
                 subquery.c.secondName,
                 subquery.c.start,
@@ -178,7 +196,7 @@ def admin_book(entry, start_time):
                 carNumber=entry.carNumber,
                 parkingLot=entry.parkingLot,
                 start=start_time,
-                ended=False  
+                ended=False
             )
         else:
             new_booking = Booking(
@@ -187,7 +205,7 @@ def admin_book(entry, start_time):
                 carNumber=entry.carNumber,
                 parkingLot=entry.parkingLot,
                 start=start_time,
-                ended=False 
+                ended=False
             )
         session.add(new_booking)
 
@@ -211,18 +229,19 @@ def admin_book(entry, start_time):
 
         active_lots = get_active_lots()
         print(active_lots)
-            
 
-def create_user(user_data: models.RUser):
+
+def create_user(user_data: models.RUser, admin: bool):
     session = Session()
 
     try:
         new_user = User(
-           login = user_data.login,
-           password = user_data.password,
-           first_name = user_data.first_name,
-           second_name = user_data.second_name,
-           car_number = None
+            login=user_data.login,
+            password=user_data.password,
+            first_name=user_data.first_name,
+            second_name=user_data.second_name,
+            car_number=None,
+            admin=admin
         )
 
         session.add(new_user)
@@ -230,7 +249,7 @@ def create_user(user_data: models.RUser):
         session.commit()
 
         return User
-    
+
     except Exception as e:
         session.rollback()
         raise e
@@ -244,17 +263,17 @@ def get_user(entry_login: str):
 
     try:
         print(0)
-        user = session.query(User).filter_by(login = entry_login).first()
+        user = session.query(User).filter_by(login=entry_login).first()
 
         if user:
             print(user.password)
             return user
         else:
             return None
-    
+
     except Exception as e:
         session.rollback()
         raise e
 
     finally:
-        session.close()    
+        session.close()

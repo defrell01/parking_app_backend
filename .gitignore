@@ -4,3 +4,4 @@
 *.sqlite
 **/__pycahce__/**
 **/*.pyc
+*.db
