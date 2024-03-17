@@ -135,6 +135,27 @@ def get_inactive_lots():
         session.close()
 
 
+def get_inactive_lots_by_floor(floor):
+    session = Session()
+    try:
+        inactive_lots = (
+            session.query(
+                ParkingLot.id,
+                ParkingLot.status,
+                ParkingLot.floor
+            )
+            .filter(
+                ParkingLot.status == 0,
+                ParkingLot.floor == floor
+            )
+            .all()
+        )
+
+        return inactive_lots
+    finally:
+        session.close()
+
+
 def get_active_lots():
     session = Session()
     try:
@@ -167,6 +188,48 @@ def get_active_lots():
             .filter(
                 subquery.c.row_num == 1,
                 ParkingLot.status == 1
+            )
+            .all()
+        )
+
+        return active_lots
+    finally:
+        session.close()
+
+
+def get_active_lots_by_floor(floor):
+    session = Session()
+    try:
+        subquery = (
+            select(
+                Booking.parkingLot,
+                Booking.firstName,
+                Booking.secondName,
+                Booking.start,
+                Booking.carNumber,
+                func.row_number().over(
+                    partition_by=Booking.parkingLot,
+                    order_by=Booking.start.desc()
+                ).label("row_num")
+            )
+            .where(Booking.ended == False)
+            .alias("sub")
+        )
+        active_lots = (
+            session.query(
+                ParkingLot.id,
+                ParkingLot.status,
+                ParkingLot.floor,
+                subquery.c.firstName,
+                subquery.c.secondName,
+                subquery.c.start,
+                subquery.c.carNumber
+            )
+            .outerjoin(subquery, ParkingLot.id == subquery.c.parkingLot)
+            .filter(
+                subquery.c.row_num == 1,
+                ParkingLot.status == 1,
+                ParkingLot.floor == floor
             )
             .all()
         )

@@ -1,14 +1,16 @@
 from fastapi import Depends, HTTPException, FastAPI
 from fastapi.security import OAuth2PasswordBearer
 from db.database import (create_booking, end_booking, get_active_lots, get_admin,
-                         admin_book, initialize_db, get_inactive_lots, create_user, get_user)
-from request_models.request_models import RAdminRequest, RAdminBook, RBookings, REndingBooking, RUser, RTokenData
+                         admin_book, initialize_db, get_inactive_lots, create_user, get_user,
+                         get_active_lots_by_floor, get_inactive_lots_by_floor)
+from request_models.request_models import RAdminRequest, RAdminBook, RBookings, REndingBooking, RUser, RTokenData, REmailSchema, RGetLots
 from datetime import datetime, timedelta
 import uvicorn
 from http import HTTPStatus
 from user.aaa import generate_password, auth_user, create_access_token, create_context, get_password_hash
 from jose import jwt, JWTError
 import os
+from email_service.email_service import send_email
 
 
 admin_username = os.getenv('ADMIN_USERNAME')
@@ -76,10 +78,15 @@ def endpoint_end_booking(entry: REndingBooking, current_user: RUser = Depends(ge
 
 
 @app.get("/api/get_lots/")
-def endpoint_get_lots(current_user: RUser = Depends(get_current_user)):
+def endpoint_get_lots(entry: RGetLots, current_user: RUser = Depends(get_current_user)):
     try:
-        active_lots_info = get_active_lots()
-        inactive_lots_info = get_inactive_lots()
+
+        if entry.floor:
+            active_lots_info = get_active_lots(entry.floor)
+            inactive_lots_info = get_inactive_lots(entry.floor)
+        else:
+            active_lots_info = get_active_lots()
+            inactive_lots_info = get_inactive_lots()
 
         active_response = [
             {
@@ -130,11 +137,24 @@ def endpoint_create_user(entry: RUser, current_user: RUser = Depends(get_current
 
         res = create_user(entry, False)
 
-        return {"login": entry.login,
-                "password:": tmp_password,
-                "status": 1}
+        if res:
+            email_data = REmailSchema(
+                recipient_email=entry.login,
+                subject="Регистрация на сайте",
+                message="Вы успешно зарегистрированы. Ваш временный пароль: {}"
+            )
+            res = send_email(email_data, tmp_password)
+
+            if res == 1:
+                return {"login": entry.login,
+                        "password:": tmp_password,
+                        "status": 1}
+            else:
+                print(e)
+                return e
+            
     except Exception as e:
-        print(e)
+        return(e)
 
 
 @app.post("/api/token/")

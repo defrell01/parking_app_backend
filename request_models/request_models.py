@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 
 
 class RBookings(BaseModel):
@@ -37,7 +37,7 @@ class RTokenData(BaseModel):
 
 
 class RUser(BaseModel):
-    login: str
+    login: EmailStr
     password: str | None = None
     first_name: str | None = None
     second_name: str | None = None
@@ -45,3 +45,13 @@ class RUser(BaseModel):
 
 class RUserInDB(RUser):
     password: str
+
+
+class REmailSchema(BaseModel):
+    recipient_email: EmailStr
+    subject: str
+    message: str
+
+
+class RGetLots(BaseModel):
+    floor: int | None = None

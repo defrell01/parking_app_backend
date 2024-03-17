@@ -11,8 +11,10 @@ services:
     environment:
       - DATABASE_URL=sqlite:///./app.db
       - SECRET_KEY=09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7
-      - ADMIN_USERNAME=admin
+      - ADMIN_USERNAME=admin@admin.ru
       - ADMIN_PASSWORD=admin
+      - EMAIL_LOGIN=parking_test01@sibnet.ru
+      - EMAIL_PASSWORD=parking_test01
   db:
     image: alpine
     volumes:
