@@ -77,7 +77,7 @@ def endpoint_end_booking(entry: REndingBooking, current_user: RUser = Depends(ge
         return HTTPStatus(400)
 
 
-@app.get("/api/get_lots/")
+@app.post("/api/get_lots/")
 def endpoint_get_lots(entry: RGetLots, current_user: RUser = Depends(get_current_user)):
     try:
 
