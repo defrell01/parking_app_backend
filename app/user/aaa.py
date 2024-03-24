@@ -1,16 +1,21 @@
-from passlib.context import CryptContext
+from http import HTTPStatus
+import os
 import string
 import random
 from datetime import datetime, timedelta, timezone
-from jose import jwt
-from db.database import get_user
-import os
+from fastapi.security import OAuth2PasswordBearer
+from passlib.context import CryptContext
+from jose import JWTError, jwt
+from fastapi import Depends
+from ..db.database import get_user
+from ..request_models.request_models import RUser, RTokenData
 
 
 SECRET_KEY = os.getenv('SECRET_KEY')
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/token/")
 
 def create_context() -> CryptContext:
     return CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -78,7 +83,27 @@ def auth_user(login: str, password: str):
 
         if verify_password(password, user.password, context):
             return user
-        else:
-            return None
-    else:
         return None
+    return None
+
+
+def get_current_user(token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPStatus(401)
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            return credentials_exception
+        RTokenData(username=username)
+    except JWTError:
+        return credentials_exception
+    user = get_user(username)
+    if user is None:
+        return credentials_exception
+    return user
+
+
+def get_current_admin_user(current_user: RUser = Depends(get_current_user)):
+    if not current_user.admin:
+        return HTTPStatus(403)
+    return current_user

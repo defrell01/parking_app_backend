@@ -1,9 +1,8 @@
-from fastapi import HTTPException
+import os
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-import os
-from request_models.request_models import REmailSchema
+from ..request_models.request_models import REmailSchema
 
 
 def send_email(email_data: REmailSchema, password: str):

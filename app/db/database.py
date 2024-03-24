@@ -1,9 +1,10 @@
+import os
+from datetime import datetime
 from sqlalchemy import create_engine, desc, func, select
 from sqlalchemy.orm import sessionmaker
-from datetime import datetime
-from db.db_models import Base, Booking, ParkingLot, Admin, User
-import request_models.request_models as models
-import os
+from ..request_models.request_models import RUser
+from .db_models import Base, Booking, ParkingLot, Admin, User
+
 
 db_url = os.getenv('DATABASE_URL')
 
@@ -21,23 +22,21 @@ def initialize_db(username, password):
                 floor = 1
             else:
                 floor = 2
-            
+
             parking_lot = ParkingLot(id=i, status=0, floor=floor)
-            
+
             session.add(parking_lot)
 
     new_user = User(
-            login=username,
-            password=password,
-            first_name=None,
-            second_name=None,
-            car_number=None,
-            admin=True
-        )
+        login=username,
+        password=password,
+        first_name=None,
+        second_name=None,
+        car_number=None,
+        admin=True
+    )
 
     session.add(new_user)
-
-
 
     session.commit()
     session.close()
@@ -56,7 +55,7 @@ def create_booking(booking):
 
         latest_booking_exists = bool(latest_booking)
 
-        if (latest_booking_exists):
+        if latest_booking_exists:
             return -1
         else:
 
@@ -71,7 +70,8 @@ def create_booking(booking):
             )
             session.add(new_booking)
 
-            parking_lot = session.query(ParkingLot).filter_by(id=booking.parkingLot).first()
+            parking_lot = session.query(ParkingLot).filter_by(
+                id=booking.parkingLot).first()
             if parking_lot:
                 parking_lot.status = 1
 
@@ -102,7 +102,8 @@ def end_booking(entry):
         latest_booking.end = time
         latest_booking.ended = True
 
-        parking_lot = session.query(ParkingLot).filter_by(id=entry.parkingLot).first()
+        parking_lot = session.query(ParkingLot).filter_by(
+            id=entry.parkingLot).first()
         if parking_lot:
             parking_lot.status = 0
 
@@ -242,7 +243,9 @@ def get_active_lots_by_floor(floor):
 def get_admin(login):
     session = Session()
     try:
-        admin = session.query(Admin.hashed_password).filter_by(login=login).first()
+        admin = session.query(
+            Admin.hashed_password).filter_by(
+            login=login).first()
         return admin.hashed_password if admin else None
     finally:
         session.close()
@@ -251,7 +254,10 @@ def get_admin(login):
 def admin_book(entry, start_time):
     session = Session()
     try:
-        owner = session.query(Booking.firstName, Booking.secondName).filter_by(carNumber=entry.carNumber).first()
+        owner = session.query(
+            Booking.firstName,
+            Booking.secondName).filter_by(
+            carNumber=entry.carNumber).first()
         if not owner:
             new_booking = Booking(
                 firstName="adm",
@@ -272,7 +278,8 @@ def admin_book(entry, start_time):
             )
         session.add(new_booking)
 
-        parking_lot = session.query(ParkingLot).filter_by(id=entry.parkingLot).first()
+        parking_lot = session.query(ParkingLot).filter_by(
+            id=entry.parkingLot).first()
         if parking_lot:
             parking_lot.status = 1
 
@@ -294,7 +301,7 @@ def admin_book(entry, start_time):
         print(active_lots)
 
 
-def create_user(user_data: models.RUser, admin: bool):
+def create_user(user_data: RUser, admin: bool):
     session = Session()
 
     try:
@@ -331,8 +338,7 @@ def get_user(entry_login: str):
         if user:
             print(user.password)
             return user
-        else:
-            return None
+        return None
 
     except Exception as e:
         session.rollback()

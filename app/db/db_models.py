@@ -6,8 +6,7 @@ Base = declarative_base()
 
 
 class Booking(Base):
-    __tablename__ = 'bookings'
-    
+    __tablename__ = 'bookings'    
     id = Column(Integer, primary_key=True, autoincrement=True)
     firstName = Column(String)
     secondName = Column(String)
@@ -17,38 +16,29 @@ class Booking(Base):
     end = Column(String)
     ended = Column(Boolean)
     error = Column(Boolean, nullable=True)
-
     parking_lot = relationship("ParkingLot", back_populates="bookings")
 
 
 class ParkingLot(Base):
     __tablename__ = 'parking_lots'
-    
     id = Column(Integer, primary_key=True)
     status = Column(Integer)
     floor = Column(Integer)
-
     bookings = relationship("Booking", order_by=Booking.id, back_populates="parking_lot")
 
 
 class Admin(Base):
     __tablename__ = 'admins'
-    
     login = Column(String, primary_key=True)
     hashed_password = Column(String)
 
 
 class User(Base):
     __tablename__ = 'users'
-
     id = Column(Integer, primary_key=True, autoincrement=True)
-    
     login = Column(String)
     password = Column(String)
-    
     first_name = Column(String)
     second_name = Column(String)
-
     car_number = Column(String)
-
     admin = Column(Boolean)

@@ -16,10 +16,7 @@ bcrypt = "4.0.1"
 python-jose = "3.3.0"
 passlib = {extras = ["bcrypt"], version = "^1.7.4"}
 psycopg2-binary = "^2.9.9"
-
-[tool.poetry.source]
-name = "pypi"
-url = "https://pypi.org/simple"
+gunicorn = "^21.2.0"
 
 [build-system]
 requires = ["poetry-core"]

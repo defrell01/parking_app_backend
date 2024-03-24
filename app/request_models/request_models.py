@@ -55,3 +55,4 @@ class REmailSchema(BaseModel):
 
 class RGetLots(BaseModel):
     floor: int | None = None
+    
