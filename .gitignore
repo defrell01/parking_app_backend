@@ -1,0 +1,7 @@
+/.idea/
+/__pycahce__
+*/__pycahce__
+*.sqlite
+**/__pycahce__/**
+**/*.pyc
+*.db
